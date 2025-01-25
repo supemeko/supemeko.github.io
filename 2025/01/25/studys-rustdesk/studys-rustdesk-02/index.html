@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>RustDesk源码学习笔记 02-分析会和服务的通信报文1 | Gary's Blogs</title><meta name="author" content="Gary Go"><meta name="copyright" content="Gary Go"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="学习一下RustDesk开源项目，试图了解udp，tokio，p2p,rdp的一些知识">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RustDesk源码学习笔记 02-分析会和服务的通信报文1">
+<meta property="og:url" content="https://supemeko.github.io/2025/01/25/studys-rustdesk/studys-rustdesk-02/index.html">
+<meta property="og:site_name" content="Gary&#39;s Blogs">
+<meta property="og:description" content="学习一下RustDesk开源项目，试图了解udp，tokio，p2p,rdp的一些知识">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png">
+<meta property="article:published_time" content="2025-01-25T04:18:00.000Z">
+<meta property="article:modified_time" content="2025-01-25T16:37:18.840Z">
+<meta property="article:author" content="Gary Go">
+<meta property="article:tag" content="文章">
+<meta property="article:tag" content="学习笔记">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png"><link rel="shortcut icon" href="/img/robot.svg"><link rel="canonical" href="https://supemeko.github.io/2025/01/25/studys-rustdesk/studys-rustdesk-02/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=4.13.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: {"defaultEncoding":1,"translateDelay":0,"msgToTraditionalChinese":"繁","msgToSimplifiedChinese":"簡"},
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: true,
+    post: true
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.11.1/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: true,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'RustDesk源码学习笔记 02-分析会和服务的通信报文1',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2025-01-26 00:37:18'
+}</script><script>(win=>{
+      win.saveToLocal = {
+        set: (key, value, ttl) => {
+          if (ttl === 0) return
+          const now = Date.now()
+          const expiry = now + ttl * 86400000
+          const item = {
+            value,
+            expiry
+          }
+          localStorage.setItem(key, JSON.stringify(item))
+        },
+      
+        get: key => {
+          const itemStr = localStorage.getItem(key)
+      
+          if (!itemStr) {
+            return undefined
+          }
+          const item = JSON.parse(itemStr)
+          const now = Date.now()
+      
+          if (now > item.expiry) {
+            localStorage.removeItem(key)
+            return undefined
+          }
+          return item.value
+        }
+      }
+    
+      win.getScript = (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        script.onerror = reject
+        script.onload = script.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          script.onload = script.onreadystatechange = null
+          resolve()
+        }
+
+        Object.keys(attr).forEach(key => {
+          script.setAttribute(key, attr[key])
+        })
+
+        document.head.appendChild(script)
+      })
+    
+      win.getCSS = (url, id = false) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onerror = reject
+        link.onload = link.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          link.onload = link.onreadystatechange = null
+          resolve()
+        }
+        document.head.appendChild(link)
+      })
+    
+      win.activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+        if (t === 'dark') activateDarkMode()
+        else if (t === 'light') activateLightMode()
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+      const detectApple = () => {
+        if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+          document.documentElement.classList.add('apple')
+        }
+      }
+      detectApple()
+    })(window)</script><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/img/avatar.jpg" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">2</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><hr class="custom-hr"/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url('https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png')"><nav id="nav"><span id="blog-info"><a href="/" title="Gary's Blogs"><img class="site-icon" src="/img/robot.svg"/><span class="site-name">Gary's Blogs</span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav><div id="post-info"><h1 class="post-title">RustDesk源码学习笔记 02-分析会和服务的通信报文1</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2025-01-25T04:18:00.000Z" title="发表于 2025-01-25 12:18:00">2025-01-25</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2025-01-25T16:37:18.840Z" title="更新于 2025-01-26 00:37:18">2025-01-26</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">学习笔记</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/RustDesk%E6%BA%90%E7%A0%81%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">RustDesk源码学习笔记</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="RustDesk源码学习笔记 02-分析会和服务的通信报文1"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><h3 id="概要"><a href="#概要" class="headerlink" title="概要"></a>概要</h3><p>RustDesk分为服务端和客户端，服务端有2种服务器，会和服务器hhbs，中继服务器hbbr<br>在会和服务器，中继服务器，客户端之间使用按protobuf定义的报文格式进行节点管理<br>在这些负责节点管理的报文中，初步判断共有19种报文类型，接下来的几个章节会对这19种报文的作用逐一分析。<br>包括（按字面意思翻译）：<br>RegisterPeer 注册节点<br>RegisterPeerResponse 注册节点响应<br>PunchHoleRequest 打洞请求<br>PunchHole 打洞<br>PunchHoleSent 打洞送出<br>PunchHoleResponse 打洞响应<br>FetchLocalAddr 拉取本地地址<br>LocalAddr 本地地址<br>ConfigUpdate 配置更新<br>RegisterPk 注册公钥<br>RegisterPkResponse 注册公钥响应<br>SoftwareUpdate 软件更新<br>RequestRelay 请求中继<br>RelayResponse 中继响应<br>TestNatRequest 测试NAT请求<br>TestNatResponse 测试NAT响应<br>PeerDiscovery 节点发现<br>OnlineRequest 在线请求<br>OnlineResponse 在线响应<br>KeyExchange 新接口<br>HealthCheck 新接口</p>
+<h3 id="本章节内容"><a href="#本章节内容" class="headerlink" title="本章节内容"></a>本章节内容</h3><p>本章节将首先介绍RustDeskServerDemo，然后贴出RustDesk官方仓库Wiki中对RustDesk工作原理的解释，之后在分析注册节点和公钥的四种报文类型。<br>本章节分为以下小节:</p>
+<ol>
+<li>RustDeskServerDemo介绍</li>
+<li>《How does RustDesk work?》</li>
+<li>注册节点服务分析</li>
+<li>注册公钥服务分析</li>
+</ol>
+<p>相关链接：<br>《How does RustDesk work?》 <a target="_blank" rel="noopener" href="https://github.com/rustdesk/rustdesk/wiki/How-does-RustDesk-work%3F">https://github.com/rustdesk/rustdesk/wiki/How-does-RustDesk-work%3F</a><br>《Issues: Working principle》 <a target="_blank" rel="noopener" href="https://github.com/rustdesk/rustdesk/issues/594#issuecomment-1138342668">https://github.com/rustdesk/rustdesk/issues/594#issuecomment-1138342668</a><br>《RustDesk 源码阅读》 <a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1897847">https://cloud.tencent.com/developer/article/1897847</a></p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="RustDeskServerDemo介绍"><a href="#RustDeskServerDemo介绍" class="headerlink" title="RustDeskServerDemo介绍"></a>RustDeskServerDemo介绍</h3><p>RustDeskServerDemo是RustDesk早期开源的一个RustDesk服务端实现Demo<br>源码：<a target="_blank" rel="noopener" href="https://github.com/rustdesk/rustdesk-server-demo">https://github.com/rustdesk/rustdesk-server-demo</a></p>
+<p>RustDeskServerDemo监听2个端口号，21116(UDP+TCP)和21117(TCP)。<br>21116用于节点注册，21117用于中继转发视频，音频流。<br>21116对应会和服务，21117对应中继服务。<br>与RustDeskServer不同，RustDeskServerDemo所有的流量都通过中继服务转发。</p>
+<p>会和服务，处理以下几种请求</p>
+<ol>
+<li>节点注册（UDP），接受客户端发送的RegisterPeer请求，并做RegisterPeerResponse响应</li>
+<li>节点公钥注册（UDP），接受客户端发送的RegisterPk请求，并作RegisterPkResponse响应</li>
+<li>打洞请求（TCP），接受客户端A发送的PunchHoleRequest请求，向客户端B发送RequestRelay请求，告知客户端B中继服务的ip地址</li>
+<li>中继响应（TCP），接受客户端B返回的RelayResponse响应，将响应透传给客户端A，告知客户端A中继服务的ip地址</li>
+</ol>
+<p>中继服务，在会和服务处理完中继响应之后，客户端A和B会分别和中继服务建立TCP连接，通过中继服务转发流量。</p>
+<h3 id="《How-does-RustDesk-work-》"><a href="#《How-does-RustDesk-work-》" class="headerlink" title="《How does RustDesk work?》"></a>《How does RustDesk work?》</h3><p><img src="/img/posts/studys-rustdesk/02-01-working-principle.png" title="Working Principle"><br><img src="/img/posts/studys-rustdesk/02-02-working-principle-2.png" title="Working Principle 2"></p>
+<h3 id="注册节点服务分析"><a href="#注册节点服务分析" class="headerlink" title="注册节点服务分析"></a>注册节点服务分析</h3><h4 id="报文定义"><a href="#报文定义" class="headerlink" title="报文定义"></a>报文定义</h4><figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">message </span><span class="title class_">RegisterPeer</span> &#123;</span><br><span class="line">  <span class="type">string</span> id = <span class="number">1</span>;</span><br><span class="line">  <span class="type">int32</span> serial = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">message </span><span class="title class_">RegisterPeerResponse</span> &#123;</span><br><span class="line">  <span class="type">bool</span> request_pk = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="介绍-1"><a href="#介绍-1" class="headerlink" title="介绍"></a>介绍</h4><p>RegisterPeer.id 客户端唯一标识符<br>RegisterPeer.serial 客户端版本号，用于标记客户端是否需要更新配置<br>RegisterPeerResponse.request_pk 客户端是否需要注册公钥</p>
+<p>由客户端生成唯一标识符id，id将标记一个客户端节点Peer，Peer信息被存储在sqllite中，并用HashMap缓存。</p>
+<h5 id="Peer定义"><a href="#Peer定义" class="headerlink" title="Peer定义"></a>Peer定义</h5><figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) <span class="keyword">struct</span> <span class="title class_">Peer</span> &#123;</span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) socket_addr: SocketAddr,</span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) last_reg_time: Instant,</span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) guid: <span class="type">Vec</span>&lt;<span class="type">u8</span>&gt;,</span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) uuid: Bytes,</span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) pk: Bytes,</span><br><span class="line">  <span class="comment">// pub(crate) user: Option&lt;Vec&lt;u8&gt;&gt;,</span></span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) info: PeerInfo,</span><br><span class="line">  <span class="comment">// pub(crate) disabled: bool,</span></span><br><span class="line">  <span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) reg_pk: (<span class="type">u32</span>, Instant), <span class="comment">// how often register_pk</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>会和服务器处理RegisterPeer请求时:<br>第一次被注册节点或者id对应节点的ip地址发生变化时，需要重新注册公钥。<br>若服务器认为需要重新注册公钥时，通过RegisterPeerResponse通知客户端，要求客户端发起注册公钥的请求<br>若服务端发现客户端需要更新配置时，通过ConfigUpdate通知客户端配置变更</p>
+<p>🔔注意： 当id注册时，注册信息不会立刻生效。</p>
+<h3 id="注册公钥服务分析"><a href="#注册公钥服务分析" class="headerlink" title="注册公钥服务分析"></a>注册公钥服务分析</h3><h4 id="报文定义-1"><a href="#报文定义-1" class="headerlink" title="报文定义"></a>报文定义</h4><figure class="highlight protobuf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">message </span><span class="title class_">RegisterPk</span> &#123;</span><br><span class="line">  <span class="type">string</span> id = <span class="number">1</span>;</span><br><span class="line">  <span class="type">bytes</span> uuid = <span class="number">2</span>;</span><br><span class="line">  <span class="type">bytes</span> pk = <span class="number">3</span>;</span><br><span class="line">  <span class="type">string</span> old_id = <span class="number">4</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">message </span><span class="title class_">RegisterPkResponse</span> &#123;</span><br><span class="line">  <span class="keyword">enum </span><span class="title class_">Result</span> &#123;</span><br><span class="line">    OK = <span class="number">0</span>;</span><br><span class="line">    UUID_MISMATCH = <span class="number">2</span>;</span><br><span class="line">    ID_EXISTS = <span class="number">3</span>;</span><br><span class="line">    TOO_FREQUENT = <span class="number">4</span>;</span><br><span class="line">    INVALID_ID_FORMAT = <span class="number">5</span>;</span><br><span class="line">    NOT_SUPPORT = <span class="number">6</span>;</span><br><span class="line">    SERVER_ERROR = <span class="number">7</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  Result result = <span class="number">1</span>;</span><br><span class="line">  <span class="type">int32</span> keep_alive = <span class="number">2</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="介绍-2"><a href="#介绍-2" class="headerlink" title="介绍"></a>介绍</h4><p>RegisterPk.id 客户端唯一标识符<br>RegisterPk.uuid 客户端唯一标识符2<br>RegisterPk.pk 客户端公钥<br>RegisterPk.old_id 没有用到<br>RegisterPkResponse.result 注册公钥结果<br>RegisterPkResponse.keep_alive 存活时间，新字段，目前在RustDeskServer中没看到实现</p>
+<p>会和服务器处理RegisterPk请求时:<br>如果没有送正确的uuid会导致注册失败<br>如果同时更换ip和pk，否则注册失败<br>更新成功后，服务器会记住Peer信息</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://supemeko.github.io">Gary Go</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://supemeko.github.io/2025/01/25/studys-rustdesk/studys-rustdesk-02/">https://supemeko.github.io/2025/01/25/studys-rustdesk/studys-rustdesk-02/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://supemeko.github.io" target="_blank">Gary's Blogs</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%96%87%E7%AB%A0/">文章</a><a class="post-meta__tags" href="/tags/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">学习笔记</a></div><div class="post_share"><div class="social-share" data-image="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2025/01/25/studys-rustdesk/studys-rustdesk-01/" title="RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo</div></div></a></div><div class="next-post pull-right"><a href="/2025/01/25/hello-world/" title="Hello World"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">Hello World</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2025/01/25/studys-rustdesk/studys-rustdesk-01/" title="RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2025-01-25</div><div class="title">RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo</div></div></a></div><div><a href="/2024/04/25/studys-zero-mall/studys-zero-mall-01/" title="Flutter电商项目学习笔记 01-项目介绍"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-04-25</div><div class="title">Flutter电商项目学习笔记 01-项目介绍</div></div></a></div><div><a href="/2024/04/26/studys-zero-mall/studys-zero-mall-02/" title="Flutter电商项目学习笔记 02-完善后管错误处理"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-04-26</div><div class="title">Flutter电商项目学习笔记 02-完善后管错误处理</div></div></a></div><div><a href="/2024/05/03/studys-zero-mall/studys-zero-mall-03/" title="Flutter电商项目学习笔记 03-完善收货地址页面"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-05-03</div><div class="title">Flutter电商项目学习笔记 03-完善收货地址页面</div></div></a></div><div><a href="/2024/05/17/studys-zero-mall/studys-zero-mall-04/" title="Flutter电商项目学习笔记 04-完善我的订单页面查询接口"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-05-17</div><div class="title">Flutter电商项目学习笔记 04-完善我的订单页面查询接口</div></div></a></div><div><a href="/2024/06/10/studys-zero-mall/studys-zero-mall-05/" title="Flutter电商项目学习笔记 05-完善我的订单页面页面"><img class="cover" src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" alt="cover"><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-06-10</div><div class="title">Flutter电商项目学习笔记 05-完善我的订单页面页面</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">Gary Go</div><div class="author-info__description">虢可为的博客</div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">2</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><div class="card-info-social-icons is-center"><a class="social-icon" href="https://github.com/supemeko" target="_blank" title="Github"><i class="fab fa-github" style="color: #hdhfbb;"></i></a><a class="social-icon" href="mailto:nek03@qq.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #000000;"></i></a></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%8B%E7%BB%8D"><span class="toc-number">1.</span> <span class="toc-text">介绍</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A6%82%E8%A6%81"><span class="toc-number">1.1.</span> <span class="toc-text">概要</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E7%AB%A0%E8%8A%82%E5%86%85%E5%AE%B9"><span class="toc-number">1.2.</span> <span class="toc-text">本章节内容</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%AD%A3%E6%96%87"><span class="toc-number">2.</span> <span class="toc-text">正文</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#RustDeskServerDemo%E4%BB%8B%E7%BB%8D"><span class="toc-number">2.1.</span> <span class="toc-text">RustDeskServerDemo介绍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E3%80%8AHow-does-RustDesk-work-%E3%80%8B"><span class="toc-number">2.2.</span> <span class="toc-text">《How does RustDesk work?》</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B3%A8%E5%86%8C%E8%8A%82%E7%82%B9%E6%9C%8D%E5%8A%A1%E5%88%86%E6%9E%90"><span class="toc-number">2.3.</span> <span class="toc-text">注册节点服务分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8A%A5%E6%96%87%E5%AE%9A%E4%B9%89"><span class="toc-number">2.3.1.</span> <span class="toc-text">报文定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BB%8B%E7%BB%8D-1"><span class="toc-number">2.3.2.</span> <span class="toc-text">介绍</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#Peer%E5%AE%9A%E4%B9%89"><span class="toc-number">2.3.2.1.</span> <span class="toc-text">Peer定义</span></a></li></ol></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B3%A8%E5%86%8C%E5%85%AC%E9%92%A5%E6%9C%8D%E5%8A%A1%E5%88%86%E6%9E%90"><span class="toc-number">2.4.</span> <span class="toc-text">注册公钥服务分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8A%A5%E6%96%87%E5%AE%9A%E4%B9%89-1"><span class="toc-number">2.4.1.</span> <span class="toc-text">报文定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BB%8B%E7%BB%8D-2"><span class="toc-number">2.4.2.</span> <span class="toc-text">介绍</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2025/01/25/studys-rustdesk/studys-rustdesk-01/" title="RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo"><img src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo"/></a><div class="content"><a class="title" href="/2025/01/25/studys-rustdesk/studys-rustdesk-01/" title="RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo">RustDesk源码学习笔记 01-实现一个基于tokio的UdpFramed的简单demo</a><time datetime="2025-01-25T04:18:00.000Z" title="发表于 2025-01-25 12:18:00">2025-01-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2025/01/25/studys-rustdesk/studys-rustdesk-02/" title="RustDesk源码学习笔记 02-分析会和服务的通信报文1"><img src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="RustDesk源码学习笔记 02-分析会和服务的通信报文1"/></a><div class="content"><a class="title" href="/2025/01/25/studys-rustdesk/studys-rustdesk-02/" title="RustDesk源码学习笔记 02-分析会和服务的通信报文1">RustDesk源码学习笔记 02-分析会和服务的通信报文1</a><time datetime="2025-01-25T04:18:00.000Z" title="发表于 2025-01-25 12:18:00">2025-01-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2025/01/25/hello-world/" title="Hello World"><img src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Hello World"/></a><div class="content"><a class="title" href="/2025/01/25/hello-world/" title="Hello World">Hello World</a><time datetime="2025-01-25T04:15:38.294Z" title="发表于 2025-01-25 12:15:38">2025-01-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2024/06/10/studys-zero-mall/studys-zero-mall-05/" title="Flutter电商项目学习笔记 05-完善我的订单页面页面"><img src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Flutter电商项目学习笔记 05-完善我的订单页面页面"/></a><div class="content"><a class="title" href="/2024/06/10/studys-zero-mall/studys-zero-mall-05/" title="Flutter电商项目学习笔记 05-完善我的订单页面页面">Flutter电商项目学习笔记 05-完善我的订单页面页面</a><time datetime="2024-06-10T15:16:16.000Z" title="发表于 2024-06-10 23:16:16">2024-06-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2024/05/17/studys-zero-mall/studys-zero-mall-04/" title="Flutter电商项目学习笔记 04-完善我的订单页面查询接口"><img src="https://jsd.012700.xyz/gh/jerryc127/CDN@latest/cover/default_bg.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Flutter电商项目学习笔记 04-完善我的订单页面查询接口"/></a><div class="content"><a class="title" href="/2024/05/17/studys-zero-mall/studys-zero-mall-04/" title="Flutter电商项目学习笔记 04-完善我的订单页面查询接口">Flutter电商项目学习笔记 04-完善我的订单页面查询接口</a><time datetime="2024-05-16T16:32:46.000Z" title="发表于 2024-05-17 00:32:46">2024-05-17</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2025 By Gary Go</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="translateLink" type="button" title="简繁转换">簡</button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="translateLink" type="button" title="简繁转换">簡</button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=4.13.0"></script><script src="/js/main.js?v=4.13.0"></script><script src="/js/tw_cn.js?v=4.13.0"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"></div><script defer="defer" id="fluttering_ribbon" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/dist/canvas-fluttering-ribbon.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
